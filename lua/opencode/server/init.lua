@@ -7,6 +7,7 @@
 ---@field username? string Basic auth username.
 ---@field password? string Basic auth password.
 ---@field start? fun() | false Start an OpenCode server. Called when none are found; will retry after.
+---@field ensure? fun(callback: fun(ok: boolean, err?: string)) Prepare a server before discovery. Calls `callback` exactly once.
 
 ---An OpenCode server.
 ---@class opencode.server.Server
@@ -136,6 +137,14 @@ function Server:curl(path, method, body, on_success, on_error, opts)
     "Accept: text/event-stream",
     "-N",
   }
+
+  -- Keep requests and attached TUIs in the same project directory. Carried from
+  -- https://github.com/nickjvandyke/opencode.nvim/pull/239; remove when upstream supersedes it.
+  local cwd = vim.fn.getcwd()
+  if cwd and cwd ~= "" then
+    table.insert(cmd, "-H")
+    table.insert(cmd, "x-opencode-directory: " .. cwd)
+  end
 
   local username = require("opencode.config").opts.server.username
   local password = require("opencode.config").opts.server.password
@@ -381,6 +390,7 @@ function Server:disconnect()
 
   if Server.connected == self then
     Server.connected = nil
+    require("opencode.events.status").clear()
   end
 end
 

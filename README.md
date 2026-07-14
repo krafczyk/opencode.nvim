@@ -222,6 +222,21 @@ Run `opencode` locally however you like and opencode.nvim will find them! Or poi
 
 If opencode.nvim can't find a running `opencode`, it starts one via `vim.g.opencode_opts.server.start`, defaulting to `term://opencode --port`.
 
+For integrations that own server lifecycle, `server.ensure` can prepare a server asynchronously before every discovery attempt. It must call its callback exactly once with `true`, or with `false` and an optional error message. Set `server.start = false` when the hook is responsible for startup:
+
+```lua
+vim.g.opencode_opts = {
+  server = {
+    ensure = function(callback)
+      prepare_my_server(function(ok, err)
+        callback(ok, err)
+      end)
+    end,
+    start = false,
+  },
+}
+```
+
 <details>
 <summary>Start via <a href="https://github.com/folke/snacks.nvim/blob/main/docs/terminal.md">snacks.terminal</a></summary>
 

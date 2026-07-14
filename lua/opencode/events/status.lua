@@ -5,6 +5,12 @@ local status = nil
 ---@type string?
 M.url = nil
 
+---Clear cached connection presentation after a server disconnect.
+function M.clear()
+  status = nil
+  M.url = nil
+end
+
 ---@return string
 function M.statusline()
   local url = (M.url and (" " .. M.url:gsub("^%w+://", "")) or "")
@@ -38,8 +44,7 @@ function M.update(event, url)
   elseif event.type == "session.status" and event.properties.status.type == "error" then
     status = "error"
   elseif event.type == "server.instance.disposed" then
-    status = nil
-    M.url = nil
+    M.clear()
   end
 end
 

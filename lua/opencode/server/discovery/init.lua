@@ -72,7 +72,32 @@ end
 function M.get()
   local Promise = require("opencode.promise")
 
-  return find()
+  local ensure = require("opencode.config").opts.server.ensure
+  local preparation = Promise.resolve()
+  if ensure then
+    preparation = Promise.new(function(resolve, reject)
+      local completed = false
+      local function callback(ok, err)
+        if completed then
+          return
+        end
+        completed = true
+
+        if ok then
+          resolve()
+        else
+          reject(err or "OpenCode server preparation failed")
+        end
+      end
+
+      local ok, err = pcall(ensure, callback)
+      if not ok then
+        callback(false, "OpenCode server preparation failed: " .. tostring(err))
+      end
+    end)
+  end
+
+  return preparation:next(find)
     :catch(function(err)
       if not err then
         -- Do nothing when server selection was cancelled
