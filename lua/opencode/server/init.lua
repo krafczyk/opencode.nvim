@@ -17,6 +17,9 @@
 ---@field subagents opencode.server.Agent[]
 ---@field subscription_job_id? number
 ---@field heartbeat_timer? uv.uv_timer_t
+---@field connect_timer? uv.uv_timer_t
+---@field connect_promise? Promise<opencode.server.Server>
+---@field connect_reject? fun(reason?: string)
 local Server = {}
 Server.__index = Server
 
@@ -227,6 +230,11 @@ function Server:curl(path, method, body, on_success, on_error, opts)
     on_exit = function(_, code)
       if code == 0 then
         process_response_buffer()
+        if opts.persistent then
+          vim.schedule(function()
+            on_error("Event stream from " .. url .. " closed before the connection completed", code)
+          end)
+        end
       else
         local response_message = #response_buffer > 0 and table.concat(response_buffer, "\n") or nil
         local stderr_message = #stderr_lines > 0 and table.concat(stderr_lines, "") or nil
@@ -251,6 +259,8 @@ function Server:curl(path, method, body, on_success, on_error, opts)
   if job_id > 0 then
     vim.fn.chansend(job_id, table.concat(config, "\n") .. "\n")
     vim.fn.chanclose(job_id, "stdin")
+  else
+    on_error("Failed to start curl for " .. url, job_id)
   end
   return job_id
 end
@@ -337,6 +347,7 @@ end
 
 ---How often OpenCode sends heartbeat events.
 local OPENCODE_HEARTBEAT_INTERVAL_MS = 10000
+local INITIAL_CONNECT_TIMEOUT_MS = 3000
 
 ---The currently connected server.
 ---Cleared when the server disposes itself, the connection errors, or the heartbeat disappears.
@@ -353,11 +364,44 @@ function Server:connect()
 
   if Server.connected == self then
     return Promise.resolve(self)
+  elseif self.connect_promise then
+    return self.connect_promise
   elseif Server.connected then
     Server.connected:disconnect()
   end
 
-  return Promise.new(function(resolve, reject)
+  local pending = true
+  local promise = Promise.new(function(resolve, reject)
+    local connect_timer, timer_err, timer_errname = vim.uv.new_timer()
+    if not connect_timer then
+      pending = false
+      reject("Failed to create OpenCode connection timer: " .. (timer_errname or "unknown") .. ": " .. (timer_err or "unknown"))
+      return
+    end
+    self.connect_timer = connect_timer
+
+    local function finish(ok, value)
+      if not pending then
+        return
+      end
+      pending = false
+      if self.connect_timer then
+        self.connect_timer:stop()
+        self.connect_timer:close()
+        self.connect_timer = nil
+      end
+      self.connect_reject = nil
+      self.connect_promise = nil
+      if ok then
+        resolve(value)
+      else
+        reject(value)
+      end
+    end
+    self.connect_reject = function(reason)
+      finish(false, reason or "OpenCode event stream closed before server.connected")
+    end
+
     self.subscription_job_id = self:sse_subscribe(
       function(response)
         if self.heartbeat_timer then
@@ -372,7 +416,7 @@ function Server:connect()
 
         if response.type == "server.connected" then
           Server.connected = self
-          resolve(self)
+          finish(true, self)
         elseif response.type == "server.instance.disposed" then
           self:disconnect()
         end
@@ -382,29 +426,54 @@ function Server:connect()
       -- Server disappeared ungracefully, e.g. process killed, network error, etc.
       -- Also called on manual disconnects, like our `vim.fn.jobstop`.
       function(msg)
-        local was_connected = Server.connected == self
-        self:disconnect()
-        if not was_connected then
-          reject(msg)
-        end
+        self:disconnect(msg or "OpenCode event stream closed before server.connected")
       end
     )
+    if self.subscription_job_id <= 0 then
+      self.subscription_job_id = nil
+      self:disconnect("Failed to start the OpenCode event stream")
+      return
+    end
+    self.connect_timer:start(
+      INITIAL_CONNECT_TIMEOUT_MS,
+      0,
+      vim.schedule_wrap(function()
+        self:disconnect("Timed out waiting for server.connected from " .. self:display_name())
+      end)
+    )
   end)
+  if pending then
+    self.connect_promise = promise
+  end
+  return promise
 end
 
 ---Unsubscribe from this server's SSE stream and stop the heartbeat timer.
 ---Idempotent.
-function Server:disconnect()
+---@param reason? string
+function Server:disconnect(reason)
+  local was_connecting = self.connect_reject ~= nil
   if self.subscription_job_id then
-    vim.fn.jobstop(self.subscription_job_id)
+    local job_id = self.subscription_job_id
     self.subscription_job_id = nil
+    vim.fn.jobstop(job_id)
   end
   if self.heartbeat_timer then
     self.heartbeat_timer:stop()
   end
 
+  if self.connect_reject then
+    self.connect_reject(reason)
+  elseif self.connect_timer then
+    self.connect_timer:stop()
+    self.connect_timer:close()
+    self.connect_timer = nil
+  end
+
   if Server.connected == self then
     Server.connected = nil
+    require("opencode.events.status").clear()
+  elseif was_connecting and not Server.connected then
     require("opencode.events.status").clear()
   end
 end

@@ -7,9 +7,28 @@ package.loaded["opencode.config"] = {
   opts = { server = { username = "audit-user", password = password } },
 }
 
+local listener = assert(vim.uv.new_tcp())
+assert(listener:bind("127.0.0.1", 0) == 0)
+assert(listener:listen(1, function(err)
+  assert(not err, err)
+  local client = assert(vim.uv.new_tcp())
+  assert(listener:accept(client) == 0)
+  client:read_start(function(read_err, data)
+    assert(not read_err, read_err)
+    if data then
+      client:read_stop()
+      vim.defer_fn(function()
+        client:write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
+        client:close()
+      end, 200)
+    end
+  end)
+end) == 0)
+local port = listener:getsockname().port
+
 local Server = require("opencode.server")
 local succeeded = false
-local job = Server.curl({ url = "http://127.0.0.1:48888" }, "/hold", "POST", {
+local job = Server.curl({ url = "http://127.0.0.1:" .. port }, "/hold", "POST", {
   secret = body_value,
 }, function()
   succeeded = true
@@ -29,4 +48,5 @@ assert(cmdline:find("%-%-config\0%-", 1), "curl must receive protected stdin con
 assert(vim.wait(5000, function()
   return succeeded
 end, 10), "curl request did not complete through protected stdin config")
+listener:close()
 vim.cmd("qa!")
