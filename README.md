@@ -237,6 +237,22 @@ vim.g.opencode_opts = {
 }
 ```
 
+HTTPS servers signed by a private CA can set `server.ca_cert` to a certificate
+path or a request-time resolver. The CA path is passed to curl through its
+protected stdin configuration for REST and SSE requests, alongside credentials
+and request bodies rather than in curl's process arguments:
+
+```lua
+vim.g.opencode_opts = {
+  server = {
+    url = "https://127.0.0.1:4096",
+    ca_cert = function()
+      return current_server_ca_path()
+    end,
+  },
+}
+```
+
 <details>
 <summary>Start via <a href="https://github.com/folke/snacks.nvim/blob/main/docs/terminal.md">snacks.terminal</a></summary>
 

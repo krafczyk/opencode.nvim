@@ -6,6 +6,7 @@
 ---@field url? string | fun(callback: fun(url?: string))
 ---@field username? string Basic auth username.
 ---@field password? string Basic auth password.
+---@field ca_cert? string | fun(): string? CA certificate used to authenticate HTTPS servers, resolved for every request.
 ---@field start? fun() | false Start an OpenCode server. Called when none are found; will retry after.
 ---@field ensure? fun(callback: fun(ok: boolean, err?: string)) Prepare a server before discovery. Calls `callback` exactly once.
 
@@ -163,6 +164,18 @@ function Server:curl(path, method, body, on_success, on_error, opts)
   local username = require("opencode.config").opts.server.username
   local password = require("opencode.config").opts.server.password
   local config = {}
+  local ca_cert = require("opencode.config").opts.server.ca_cert
+  if type(ca_cert) == "function" then
+    local ok, resolved = pcall(ca_cert)
+    if not ok then
+      on_error("Failed to resolve the CA certificate for " .. url .. ": " .. tostring(resolved), -1)
+      return -1
+    end
+    ca_cert = resolved
+  end
+  if ca_cert and ca_cert ~= "" then
+    table.insert(config, 'cacert = "' .. curl_config_quote(ca_cert) .. '"')
+  end
   if username and password then
     -- We can always send credentials; servers with no auth set just ignore them.
     table.insert(config, 'user = "' .. curl_config_quote(username .. ":" .. password) .. '"')
