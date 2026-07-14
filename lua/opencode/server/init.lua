@@ -20,6 +20,15 @@
 local Server = {}
 Server.__index = Server
 
+-- curl config files accept C-style escapes inside double quoted values. Keep
+-- credentials and request bodies on curl's stdin rather than in the process
+-- command line, which is visible to other same-user processes via /proc.
+---@param value string
+---@return string
+local function curl_config_quote(value)
+  return value:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r")
+end
+
 ---[OpenCode Commands](https://github.com/sst/opencode/blob/dev/packages/opencode/src/cli/cmd/tui/event.ts).
 ---@alias opencode.server.Command
 ---| 'agent.cycle'
@@ -136,6 +145,8 @@ function Server:curl(path, method, body, on_success, on_error, opts)
     "-H",
     "Accept: text/event-stream",
     "-N",
+    "--config",
+    "-",
   }
 
   -- Keep requests and attached TUIs in the same project directory. Carried from
@@ -148,10 +159,10 @@ function Server:curl(path, method, body, on_success, on_error, opts)
 
   local username = require("opencode.config").opts.server.username
   local password = require("opencode.config").opts.server.password
+  local config = {}
   if username and password then
-    -- We can always send credentials; servers with no auth set just ignore them
-    table.insert(cmd, "--user")
-    table.insert(cmd, username .. ":" .. password)
+    -- We can always send credentials; servers with no auth set just ignore them.
+    table.insert(config, 'user = "' .. curl_config_quote(username .. ":" .. password) .. '"')
   end
 
   if not opts.persistent then
@@ -160,8 +171,7 @@ function Server:curl(path, method, body, on_success, on_error, opts)
   end
 
   if body then
-    table.insert(cmd, "-d")
-    table.insert(cmd, vim.fn.json_encode(body))
+    table.insert(config, 'data-binary = "' .. curl_config_quote(vim.fn.json_encode(body)) .. '"')
   end
 
   table.insert(cmd, url)
@@ -191,7 +201,7 @@ function Server:curl(path, method, body, on_success, on_error, opts)
   end
 
   local stderr_lines = {}
-  return vim.fn.jobstart(cmd, {
+  local job_id = vim.fn.jobstart(cmd, {
     on_stdout = function(_, data)
       if not data then
         return
@@ -238,6 +248,11 @@ function Server:curl(path, method, body, on_success, on_error, opts)
       end
     end,
   })
+  if job_id > 0 then
+    vim.fn.chansend(job_id, table.concat(config, "\n") .. "\n")
+    vim.fn.chanclose(job_id, "stdin")
+  end
+  return job_id
 end
 
 ---@return Promise<any>
