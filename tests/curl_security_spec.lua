@@ -66,5 +66,22 @@ assert(ca_resolutions == 1, "CA resolver was not called exactly once at request 
 assert(request and request:find("x%-opencode%-directory: " .. vim.pesc(vim.fn.getcwd()), 1), "request directory was missing")
 assert(request:find("Authorization: Basic", 1, true), "request credentials were missing")
 assert(request:find(body_value, 1, true), "request body was missing")
+
+local no_ca_resolutions = 0
+package.loaded["opencode.config"].opts.server.ca_cert = function()
+  no_ca_resolutions = no_ca_resolutions + 1
+  return nil
+end
+local no_ca_succeeded = false
+local no_ca_job = Server.curl({ url = "http://127.0.0.1:" .. port }, "/no-ca", "GET", nil, function()
+  no_ca_succeeded = true
+end, function(message)
+  error(message)
+end)
+assert(no_ca_job > 0, "HTTP nil-CA curl job did not start")
+assert(vim.wait(5000, function()
+  return no_ca_succeeded
+end, 10), "HTTP request with nil CA did not complete")
+assert(no_ca_resolutions == 1, "nil CA was not resolved exactly once at request time")
 listener:close()
 vim.cmd("qa!")
