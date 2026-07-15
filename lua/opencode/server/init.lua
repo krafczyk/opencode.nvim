@@ -204,13 +204,7 @@ function Server:curl(path, method, body, on_success, on_error, opts)
             on_success(result)
           end
         else
-          local error_message = "Failed to decode response from "
-            .. url
-            .. "\nResponse: "
-            .. full_event
-            .. "\nError: "
-            .. result
-          on_error(error_message, -1)
+          on_error("Failed to decode response from " .. url, -1)
         end
       end)
     end
@@ -249,22 +243,19 @@ function Server:curl(path, method, body, on_success, on_error, opts)
           end)
         end
       else
-        local response_message = #response_buffer > 0 and table.concat(response_buffer, "\n") or nil
         local stderr_message = #stderr_lines > 0 and table.concat(stderr_lines, "") or nil
         local status
 
-        local detail_lines = { "Request to " .. url .. " failed with exit code: " .. code }
-        if response_message and response_message ~= "" then
-          table.insert(detail_lines, "Response:\n" .. response_message)
-        end
         if stderr_message and stderr_message ~= "" then
-          table.insert(detail_lines, "Stderr:\n" .. stderr_message)
           -- Afaict `curl` requires manual parsing of the response code one way or another regardless of flags :/
           status = stderr_message:match("The requested URL returned error: (%d+)$")
           status = tonumber(status)
         end
 
-        local error_message = table.concat(detail_lines, "\n")
+        local error_message = "Request to " .. url .. " failed with exit code: " .. code
+        if status then
+          error_message = error_message .. " (HTTP " .. status .. ")"
+        end
         on_error(error_message, code, status)
       end
     end,

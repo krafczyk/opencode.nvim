@@ -3,6 +3,7 @@ vim.opt.runtimepath:append(root)
 
 local password = "audit-password-must-not-appear"
 local body_value = "audit-body-must-not-appear"
+local response_value = "audit-response-must-not-appear"
 local ca_path = root .. "/README.md"
 local ca_resolutions = 0
 package.loaded["opencode.config"] = {
@@ -31,7 +32,21 @@ assert(listener:listen(1, function(err)
       request = data
       client:read_stop()
       vim.defer_fn(function()
-        client:write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}")
+        local target = data:match("^[A-Z]+ ([^ ]+)")
+        local status, body = "200 OK", "{}"
+        if target == "/malformed" then
+          body = response_value .. "{"
+        elseif target == "/failure" then
+          status, body = "500 Internal Server Error", response_value
+        end
+        client:write(
+          "HTTP/1.1 "
+            .. status
+            .. "\r\nContent-Type: application/json\r\nContent-Length: "
+            .. #body
+            .. "\r\nConnection: close\r\n\r\n"
+            .. body
+        )
         client:close()
       end, 200)
     end
@@ -83,5 +98,37 @@ assert(vim.wait(5000, function()
   return no_ca_succeeded
 end, 10), "HTTP request with nil CA did not complete")
 assert(no_ca_resolutions == 1, "nil CA was not resolved exactly once at request time")
+
+local notifications = {}
+local original_notify = vim.notify
+vim.notify = function(message)
+  table.insert(notifications, tostring(message))
+end
+local malformed_done = false
+Server.curl({ url = "http://127.0.0.1:" .. port }, "/malformed", "GET", nil, function()
+  error("malformed response unexpectedly succeeded")
+end, function(message)
+  vim.notify(message)
+  malformed_done = true
+end)
+assert(vim.wait(5000, function()
+  return malformed_done
+end, 10), "malformed response did not fail")
+
+local failure_done, failure_status = false, nil
+Server.curl({ url = "http://127.0.0.1:" .. port }, "/failure", "GET", nil, function()
+  error("HTTP 500 response unexpectedly succeeded")
+end, function(message, _, status)
+  vim.notify(message)
+  failure_status = status
+  failure_done = true
+end)
+assert(vim.wait(5000, function()
+  return failure_done
+end, 10), "HTTP 500 response did not fail")
+vim.notify = original_notify
+assert(failure_status == 500, "HTTP failure status was not preserved")
+local notification_text = table.concat(notifications, "\n")
+assert(not notification_text:find(response_value, 1, true), "response body leaked through an error notification")
 listener:close()
 vim.cmd("qa!")
