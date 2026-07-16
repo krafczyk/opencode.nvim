@@ -4,6 +4,27 @@
 
 A Neovim Lua plugin that bridges Neovim and the `opencode` CLI (external binary). It discovers or starts an `opencode` server, communicates via REST + SSE, and provides UI for prompting, context injection, session management, and edit review.
 
+## Parent Sprint Coordination
+
+When this checkout is used under `/data0/matthew/Projects/mkchad`, the parent
+workspace owns sprint selection and cross-repository sprint documents. Read
+`../AGENTS.md` before sprint work and do not infer a current sprint from this
+repository or unchecked tracker rows.
+
+This repository currently participates in the parent selector
+`single-opencode-server/2`, resolved by these documents:
+
+- `../docs/sprints/single-opencode-server/sprint_plan.md`
+- `../docs/sprints/single-opencode-server/2/sprint_spec.md`
+- `../docs/sprints/single-opencode-server/2/sprint_checklist.md`
+- `../docs/sprints/single-opencode-server/2/threat_model.md`
+- `../docs/sprints/single-opencode-server/2/audit_policy.md`
+
+If sprint work is requested from this child without an explicit parent-resolved
+selector, return to the coordination root or ask the user to select one. Normal
+standalone plugin work does not require a sprint selection. Commit child changes
+before the parent workspace records the updated gitlink.
+
 ## Entrypoints
 
 - **Public API**: `lua/opencode.lua` — exports `ask()`, `select()`, `prompt()`, `command()`, `operator()`, `format()`, `statusline`
