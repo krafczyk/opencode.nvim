@@ -25,17 +25,18 @@ forward.
 
 Do not update MkChad's immutable pin until the CA-support commit is published.
 Reproduce the candidate from a clean checkout using only temporary paths under
-`/tmp/opencode`:
+`/tmp/opencode-mkchad`:
 
 ```bash
-git clone https://github.com/krafczyk/opencode.nvim /tmp/opencode/opencode-nvim-ca-verify
-git -C /tmp/opencode/opencode-nvim-ca-verify checkout <published-ca-revision>
-nvim --headless -u NONE -l /tmp/opencode/opencode-nvim-ca-verify/tests/curl_security_spec.lua /tmp/opencode/opencode-nvim-ca-verify
-nvim --headless -u NONE -l /tmp/opencode/opencode-nvim-ca-verify/tests/sse_connect_spec.lua /tmp/opencode/opencode-nvim-ca-verify
-git clone https://github.com/krafczyk/mkchad /tmp/opencode/mkchad-ca-verify
-git -C /tmp/opencode/mkchad-ca-verify checkout <published-mkchad-revision>
-git -C /tmp/opencode/mkchad-ca-verify show HEAD:lua/plugins/init.lua
-MKCHAD_TLS_TEST_ROOT=/tmp/opencode/mkchad-clean-tls python3 /tmp/opencode/mkchad-ca-verify/tests/tls_proxy_integration.py
+mkdir -p /tmp/opencode-mkchad
+git clone https://github.com/krafczyk/opencode.nvim /tmp/opencode-mkchad/opencode-nvim-ca-verify
+git -C /tmp/opencode-mkchad/opencode-nvim-ca-verify checkout <published-ca-revision>
+nvim --headless -u NONE -l /tmp/opencode-mkchad/opencode-nvim-ca-verify/tests/curl_security_spec.lua /tmp/opencode-mkchad/opencode-nvim-ca-verify
+nvim --headless -u NONE -l /tmp/opencode-mkchad/opencode-nvim-ca-verify/tests/sse_connect_spec.lua /tmp/opencode-mkchad/opencode-nvim-ca-verify
+git clone https://github.com/krafczyk/mkchad /tmp/opencode-mkchad/mkchad-ca-verify
+git -C /tmp/opencode-mkchad/mkchad-ca-verify checkout <published-mkchad-revision>
+git -C /tmp/opencode-mkchad/mkchad-ca-verify show HEAD:lua/plugins/init.lua
+MKCHAD_TLS_TEST_ROOT=/tmp/opencode-mkchad/mkchad-clean-tls python3 /tmp/opencode-mkchad/mkchad-ca-verify/tests/tls_proxy_integration.py
 ```
 
 The TLS integration invokes `curl_tls_spec.lua` against a private-CA fixture and
