@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "component_id": "opencode-nvim",
+  "relationships": [
+    {
+      "id": "opencode-tested-baseline",
+      "type": "tested-with",
+      "target_component": "opencode",
+      "contract": {
+        "kind": "tested-baseline",
+        "version": "1.17.4",
+        "suffix_policy": "literal"
+      }
+    }
+  ]
+}

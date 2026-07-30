@@ -37,41 +37,82 @@ function M.check()
     found_version = vim.trim(vim.split(found_version, "\n")[1])
     vim.health.ok("`opencode` available with version `" .. found_version .. "`.")
 
-    local found_version_parsed = vim.version.parse(found_version)
-    local latest_tested_version = "1.17.4"
-    local latest_tested_version_parsed = vim.version.parse(latest_tested_version)
-    if found_version_parsed and latest_tested_version_parsed then
-      local found_major = found_version_parsed[1] or 0
-      local latest_tested_major = latest_tested_version_parsed[1] or 0
-      local found_minor = found_version_parsed[2] or 0
-      local latest_tested_minor = latest_tested_version_parsed[2] or 0
-      local found_patch = found_version_parsed[3] or 0
-      local latest_tested_patch = latest_tested_version_parsed[3] or 0
+    local component_metadata = require("opencode.component")
+    local component, metadata_diagnostic = component_metadata.read()
+    if not component then
+      vim.health.warn(metadata_diagnostic)
+    else
+      local contract = component_metadata.tested_with(component).contract
+      local judgment = component_metadata.tested_with_judgment(contract, found_version)
+      local latest_tested_version = contract.version
+      vim.health.info(
+        "component `"
+          .. component.component_id
+          .. "` declares `tested-with` OpenCode baseline `"
+          .. latest_tested_version
+          .. "`."
+      )
+      if judgment == "tested" then
+        vim.health.info(
+          "`opencode` version matches tested baseline `"
+            .. latest_tested_version
+            .. "`; this does not establish support."
+        )
+      elseif judgment == "tested-equivalent" then
+        vim.health.info(
+          "`opencode` version is explicitly equivalent to tested baseline `"
+            .. latest_tested_version
+            .. "`; this does not establish support."
+        )
+      else
+        local found_version_parsed = vim.version.parse(found_version)
+        local latest_tested_version_parsed = vim.version.parse(latest_tested_version)
+        if found_version:match("^v?%d+%.%d+%.%d+$") and found_version_parsed and latest_tested_version_parsed then
+          local found_major = found_version_parsed[1] or 0
+          local latest_tested_major = latest_tested_version_parsed[1] or 0
+          local found_minor = found_version_parsed[2] or 0
+          local latest_tested_minor = latest_tested_version_parsed[2] or 0
+          local found_patch = found_version_parsed[3] or 0
+          local latest_tested_patch = latest_tested_version_parsed[3] or 0
 
-      if latest_tested_major ~= found_major then
-        vim.health.warn(
-          "`opencode` version has a `major` version mismatch with latest tested version `"
-            .. latest_tested_version
-            .. "`: may cause compatibility issues."
-        )
-      elseif found_minor < latest_tested_minor then
-        vim.health.warn(
-          "`opencode` version has an older `minor` version than latest tested version `"
-            .. latest_tested_version
-            .. "`: may cause compatibility issues.",
-          {
-            "Update `opencode`.",
-          }
-        )
-      elseif found_minor == latest_tested_minor and found_patch < latest_tested_patch then
-        vim.health.warn(
-          "`opencode` version has an older `patch` version than latest tested version `"
-            .. latest_tested_version
-            .. "`: may cause compatibility issues.",
-          {
-            "Update `opencode`.",
-          }
-        )
+          if latest_tested_major ~= found_major then
+            vim.health.warn(
+              "`opencode` version has a `major` version mismatch with latest tested version `"
+                .. latest_tested_version
+                .. "`: may cause compatibility issues."
+            )
+          elseif found_minor < latest_tested_minor then
+            vim.health.warn(
+              "`opencode` version has an older `minor` version than latest tested version `"
+                .. latest_tested_version
+                .. "`: may cause compatibility issues.",
+              {
+                "Update `opencode`.",
+              }
+            )
+          elseif found_minor == latest_tested_minor and found_patch < latest_tested_patch then
+            vim.health.warn(
+              "`opencode` version has an older `patch` version than latest tested version `"
+                .. latest_tested_version
+                .. "`: may cause compatibility issues.",
+              {
+                "Update `opencode`.",
+              }
+            )
+          else
+            vim.health.info(
+              "`opencode` version is outside the tested matrix for baseline `"
+                .. latest_tested_version
+                .. "`; this does not establish support."
+            )
+          end
+        else
+          vim.health.info(
+            "`opencode` version is outside the tested matrix for baseline `"
+              .. latest_tested_version
+              .. "`; this does not establish support."
+          )
+        end
       end
     end
   else

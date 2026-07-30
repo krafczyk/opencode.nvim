@@ -23,6 +23,20 @@ For me, the best tools are the ones that "just work." opencode.nvim is designed 
 - Handle OpenCode events as autocmds
 - Simple, sensible, Vim-y defaults and interfaces
 
+## OpenCode Compatibility Metadata
+
+`opencode-component.json` is this plugin's schema-1, machine-readable owner
+metadata. It declares that `opencode.nvim` was tested with OpenCode `1.17.4`
+using a literal suffix policy. External inventory tools can read this file
+directly without loading Neovim or plugin code; `:checkhealth opencode` reads
+the same declaration.
+
+The declaration records a tested baseline, not a support guarantee. Different,
+newer, prerelease, and distribution-suffixed versions are outside that tested
+matrix unless the artifact explicitly declares an equivalence. Installed plugin
+metadata cannot prove which plugin identity Neovim has loaded; that requires
+process attestation.
+
 ## 📦 Setup
 
 [vim.pack](https://neovim.io/doc/user/pack/#vim.pack) (recommended)
